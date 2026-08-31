@@ -11,10 +11,9 @@
 // filled in and verified. See DATA_ACCURACY.md.
 export const USE_DEMO_DATA = true;
 
-// The DRIP contract address shown/copied in the UI. PLACEHOLDER for now, to be
-// replaced later. NOTE: message.txt lists 0x3f601E8a9854f562B14fe89a5b18977631025726
-// as the token address. Confirm which is correct before launch.
-export const DRIP_ADDRESS = "0x017aba1f9c89959f62b37c37e080b697b0bf086f";
+// The DRIP contract address shown/copied in the UI, and the address the
+// "View on Arc-Scan" link and Buy link point to. Change it here in one place.
+export const DRIP_ADDRESS = "0x3fa48a2234de3e65d81055f72ab00217803780b2";
 
 // Arc Mainnet. Chain id 5042. Explorer is arc-scan.org.
 export const CHAIN = {
@@ -56,7 +55,7 @@ export const EXCLUDED_FROM_CIRCULATING = [];
 
 // External links. Replace remaining "#" values before launch.
 export const LINKS = {
-  buy: "#",
+  buy: "https://radardex.pro/#0x3fa48a2234de3e65d81055f72ab00217803780b2",
   x: "https://x.com/driponarc",
   telegram: "#",
   explorer: CHAIN.explorerUrl,
