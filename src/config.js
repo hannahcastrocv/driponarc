@@ -47,10 +47,11 @@ export const ARC = {
 
   // Backfill start block. Set this to the DRIP deployment block so the initial
   // scan is small and fast. Leave 0 to scan from genesis (much slower).
-  deployBlock: 18382857,   // DRIP's first on-chain transaction (backfill start)
+  deployBlock: 18382412,   // DRIP mint block (1,000,000,000 minted here). Backfill start.
 
-  // Indexer tuning. chunkSize auto-halves on RPC range errors.
-  chunkSize: 50_000,
+  // Indexer tuning. rpc.arc-scan.org caps eth_getLogs at a 10,000-block range,
+  // so chunkSize stays at/below that. Auto-halves further on any range error.
+  chunkSize: 10_000,
   pollMs: 12_000,                // how often to check for new blocks
 };
 
