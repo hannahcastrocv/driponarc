@@ -40,6 +40,13 @@ export const ARC = {
     "0x000000000000000000000000000000000000dEaD",
   ],
 
+  // Addresses excluded from the HOLDERS count and Top Holders list only (they
+  // still exist on-chain and still count toward supply). Add the liquidity pool
+  // here so it is not counted as a holder. Extend if more pools/contracts appear.
+  excludeFromHolders: [
+    "0xb1f3594f6c4df9f95e0a95d27d3f0213c8284798", // DRIP liquidity pool
+  ],
+
   // Event topics.
   transferTopic: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
   // Custom reflection event: (indexed holder address, uint256 USDC amount).
