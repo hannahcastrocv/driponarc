@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Flame, Menu, X, Send } from "lucide-react";
 import { LINKS, ASSETS } from "./config.js";
-import { NAV, Mark, BrandMark, XLogo } from "./components/common.jsx";
+import { NAV, Mark, BrandMark, XLogo, LiveBadge } from "./components/common.jsx";
+import { LiveDataProvider, useLiveData } from "./lib/useLiveData.jsx";
 import Home from "./pages/Home.jsx";
 import Reflections from "./pages/Reflections.jsx";
 import Burns from "./pages/Burns.jsx";
@@ -10,6 +11,7 @@ import Faq from "./pages/Faq.jsx";
 
 function Navbar({ page, go }) {
   const [open, setOpen] = useState(false);
+  const { status, latestBlock } = useLiveData();
   return (
     <header className="drip-nav">
       <div className="drip-nav-inner">
@@ -20,7 +22,8 @@ function Navbar({ page, go }) {
           ))}
         </nav>
         <div className="drip-nav-right">
-          <a className="drip-btn drip-btn-primary drip-buy" href={LINKS.buy}>BUY DRIP <Flame size={15} /></a>
+          <LiveBadge status={status} latestBlock={latestBlock} />
+          <a className="drip-btn drip-btn-primary drip-buy" href={LINKS.buy} target="_blank" rel="noreferrer">BUY DRIP <Flame size={15} /></a>
           <button className="drip-nav-burger" onClick={() => setOpen(!open)} aria-label="Menu">{open ? <X size={22} /> : <Menu size={22} />}</button>
         </div>
       </div>
@@ -29,7 +32,7 @@ function Navbar({ page, go }) {
           {NAV.map((n) => (
             <button key={n.id} className={`drip-nav-mlink ${page === n.id ? "active" : ""}`} onClick={() => { go(n.id); setOpen(false); }}>{n.label}</button>
           ))}
-          <a className="drip-btn drip-btn-primary" href={LINKS.buy} style={{ margin: "8px 0 0" }}>BUY DRIP <Flame size={15} /></a>
+          <a className="drip-btn drip-btn-primary" href={LINKS.buy} target="_blank" rel="noreferrer" style={{ margin: "8px 0 0" }}>BUY DRIP <Flame size={15} /></a>
         </div>
       )}
     </header>
@@ -57,8 +60,8 @@ function Footer({ go }) {
         <div className="drip-footer-col">
           <div className="drip-footer-h">CONNECT</div>
           <div className="drip-socials">
-            <a href={LINKS.x} className="drip-social" aria-label="X"><XLogo /></a>
-            <a href={LINKS.telegram} className="drip-social" aria-label="Telegram"><Send size={17} /></a>
+            <a href={LINKS.x} className="drip-social" aria-label="X" target="_blank" rel="noreferrer"><XLogo /></a>
+            <a href={LINKS.telegram} className="drip-social" aria-label="Telegram" target="_blank" rel="noreferrer"><Send size={17} /></a>
           </div>
         </div>
         <div className="drip-footer-col">
@@ -74,7 +77,7 @@ function Footer({ go }) {
   );
 }
 
-export default function App() {
+function Shell() {
   const [page, setPage] = useState("home");
   const go = (id) => { setPage(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
   return (
@@ -89,5 +92,13 @@ export default function App() {
       </main>
       <Footer go={go} />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <LiveDataProvider>
+      <Shell />
+    </LiveDataProvider>
   );
 }
