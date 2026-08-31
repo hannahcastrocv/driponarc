@@ -1,78 +1,85 @@
 /* ============================================================================
-   DRIP site configuration
+   DRIP site configuration - Change v4 (live Arc Mainnet on-chain data)
    ----------------------------------------------------------------------------
-   Everything launch-specific lives here. Nothing else in the app needs editing
-   when DRIP goes live: flip USE_DEMO_DATA to false, fill in the values below,
-   and point LIVE_API_BASE at your indexer API (see DATA_ACCURACY.md).
+   All statistics are read live from Arc Mainnet by the client-side indexer in
+   src/lib/indexer.js. There are no hardcoded stat numbers anywhere.
+
+   YOU MUST SET: ARC.rpcUrl (an Arc Mainnet RPC endpoint). Without it the site
+   cannot read the chain and will show a "connect an RPC" state. See the notes
+   at the bottom of this file.
    ============================================================================ */
 
-// While true, the site renders the demo/mock values in src/data/demo.js.
-// Flip to false only once the indexer API and/or on-chain addresses below are
-// filled in and verified. See DATA_ACCURACY.md.
-export const USE_DEMO_DATA = true;
-
-// The DRIP contract address shown/copied in the UI, and the address the
-// "View on Arc-Scan" link and Buy link point to. Change it here in one place.
-export const DRIP_ADDRESS = "0x3fa48a2234de3e65d81055f72ab00217803780b2";
-
-// Arc Mainnet. Chain id 5042. Explorer is arc-scan.org.
-export const CHAIN = {
-  id: 5042,
+// -- Arc Mainnet + DRIP protocol constants (all provided / verified on-chain) --
+export const ARC = {
+  chainId: 5042,                 // Arc Mainnet (0x13b2)
   name: "Arc Mainnet",
-  rpcUrl: "REPLACE_WITH_ARC_MAINNET_RPC_URL", // ARC_RPC_URL
-  wsUrl: "",                                  // ARC_WS_URL (optional websocket)
+
+  // REQUIRED: an Arc Mainnet JSON-RPC HTTP endpoint. Circle has not published a
+  // free public mainnet RPC; use your own node or a provider key (QuickNode,
+  // dRPC, Chainstack, Alchemy, etc.). Do NOT commit a secret key to a public
+  // repo - inject it at build time via an env var if it is private.
+  rpcUrl: "https://rpc.arc-scan.org",   // Arc Mainnet public RPC (confirmed)
+  wsUrl: "",                     // optional websocket endpoint for live blocks
+
+  // Explorer used for every address/tx link on the site.
   explorerUrl: "https://arc-scan.org",
-  usdc: "", // native USDC token address on Arc. Do NOT guess. Verify on-chain.
-};
 
-// Base URL of the backend indexer API that serves the aggregated stats
-// (/api/stats, /api/reflections, /api/burns, /api/buybacks, /api/holders,
-// /api/activity, /api/protocol-addresses). Leave "" until it is deployed.
-export const LIVE_API_BASE = "";
+  drip: "0x3Fa48a2234dE3e65D81055F72ab00217803780B2",
+  dripDecimals: 18,
+  initialSupply: 1_000_000_000,  // 1,000,000,000 DRIP (fixed)
 
-/* Protocol addresses. IMPORTANT: do not invent these. They must be discovered by
-   tracing real on-chain transactions/events (see message.txt + DATA_ACCURACY.md),
-   then pasted here. The two burn sinks below are the canonical, universal burn
-   addresses, not assumptions. Everything left "" is intentionally unset. */
-export const PROTOCOL_ADDRESSES = {
-  token: DRIP_ADDRESS,
-  reflectionDistributor: "",
-  usdc: "",
-  buyback: "",
-  router: "",
-  liquidityPool: "",
-  treasury: "",
-  feeCollector: "",
+  usdc: "0x3600000000000000000000000000000000000000",
+  usdcDecimals: 6,
+
+  // Official wallet used for MANUAL buybacks.
+  buybackWallet: "0xDb432A31fd4F723176D038BBB15b929dbb8039fa",
+
+  // Any DRIP sent to either address is a burn, regardless of sender.
   burnAddresses: [
     "0x0000000000000000000000000000000000000000",
     "0x000000000000000000000000000000000000dEaD",
   ],
+
+  // Event topics.
+  transferTopic: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+  // Custom reflection event: (indexed holder address, uint256 USDC amount).
+  reflectionTopic: "0x5efa67896a23b651b741b525caacba039c00ca7853be3de8eb1f4269e8669c56",
+
+  // Backfill start block. Set this to the DRIP deployment block so the initial
+  // scan is small and fast. Leave 0 to scan from genesis (much slower).
+  deployBlock: 18382857,   // DRIP's first on-chain transaction (backfill start)
+
+  // Indexer tuning. chunkSize auto-halves on RPC range errors.
+  chunkSize: 50_000,
+  pollMs: 12_000,                // how often to check for new blocks
 };
 
-// Addresses excluded from the circulating-supply calculation (treasury, locked,
-// distributor, etc.). Configurable. Empty by default so nothing is assumed.
-export const EXCLUDED_FROM_CIRCULATING = [];
+// Contract address shown/copied in the UI + the "View on Arc-Scan" target.
+export const DRIP_ADDRESS = ARC.drip;
 
-// External links. Replace remaining "#" values before launch.
+// Explorer URL helpers.
+export const EXPLORER = {
+  address: (a) => `${ARC.explorerUrl}/address/${a}`,
+  tx: (h) => `${ARC.explorerUrl}/tx/${h}`,
+  token: (a) => `${ARC.explorerUrl}/token/${a}`,
+};
+
+// Tokenomics shown in the Fee Breakdown panel. These are protocol design
+// values (not on-chain statistics), kept as the site already displayed them.
+export const TOKENOMICS = {
+  reflection: 50, burnBuyback: 25, treasury: 25, buyTax: 1, sellTax: 1,
+};
+
+// External links.
 export const LINKS = {
   buy: "https://radardex.pro/#0x3fa48a2234de3e65d81055f72ab00217803780b2",
   x: "https://x.com/driponarc",
-  telegram: "#",
-  explorer: CHAIN.explorerUrl,
-  contract: `${CHAIN.explorerUrl}/address/${DRIP_ADDRESS}`,
+  telegram: "https://t.me/officialdrip",
+  explorer: ARC.explorerUrl,
+  contract: `${ARC.explorerUrl}/address/${ARC.drip}`,
 };
 
-// Explorer URL helpers (arc-scan.org). Used to link addresses and tx hashes.
-export const EXPLORER = {
-  address: (a) => `${CHAIN.explorerUrl}/address/${a}`,
-  tx: (h) => `${CHAIN.explorerUrl}/tx/${h}`,
-  token: (a) => `${CHAIN.explorerUrl}/token/${a}`,
-};
-
-// Brand art. Files live in public/characters and are served from the site root.
-// import.meta.env.BASE_URL resolves to whatever base Vite is built with, so
-// these paths work locally and on a GitHub Pages subfolder with no edits.
-// Swap the files (keep the names) to update the art without touching code.
+// Brand art (served from public/characters via the build base).
 export const ASSETS = {
   mark: `${import.meta.env.BASE_URL}characters/drip-mark.png`,
   arc: `${import.meta.env.BASE_URL}characters/arc-logo.webp`,
