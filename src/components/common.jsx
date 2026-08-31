@@ -150,8 +150,8 @@ export function ValuePropBar() {
       <div className="drip-valueprop-left">
         <span className="drip-valueprop-mascot"><Mark /></span>
         <div>
-          <div className="drip-valueprop-title">NO CLAIMING. <span className="drip-accent">NO STAKING.</span> NO WAITING.</div>
-          <p className="drip-valueprop-sub">Hold DRIP and earn USDC automatically. It is the simplest way to be rewarded.</p>
+          <div className="drip-valueprop-title">AUTOMATIC ACCRUAL. <span className="drip-accent">NO STAKING.</span> NO LOCKUPS.</div>
+          <p className="drip-valueprop-sub">Hold DRIP and your USDC reflections accrue automatically. Claim them any time on Radardex.</p>
         </div>
       </div>
       <div className="drip-valueprop-right">
@@ -241,8 +241,8 @@ export function WalletDashboard({ wallet }) {
 
 export const FAQS = [
   { q: "What is DRIP?", a: "DRIP is a reflection-powered memecoin on Arc. Every transaction rewards holders with USDC, burns DRIP, and supports the market with automatic buybacks." },
-  { q: "How do USDC reflections work?", a: "A portion of every transaction is converted to USDC and automatically distributed to all eligible DRIP holders. No claiming, no staking, no waiting." },
-  { q: "Do I need to claim my USDC reflections?", a: "No. USDC reflections are distributed automatically to your wallet. Just hold DRIP." },
+  { q: "How do USDC reflections work?", a: "A portion of every transaction is converted to USDC and accrues automatically to all eligible DRIP holders in proportion to their holdings. You withdraw your accumulated USDC by claiming on Radardex." },
+  { q: "Do I need to claim my USDC reflections?", a: "Yes. Your USDC reflections accumulate as you hold DRIP, and you claim them on Radardex. Connect your wallet on Radardex to claim your USDC." },
   { q: "What is the DRIP burn mechanism?", a: "DRIP is burned automatically as fees are collected on the token side, permanently removing DRIP from supply over time and increasing scarcity." },
   { q: "How does the buyback mechanism work?", a: "Accumulated fees are used to buy DRIP from the open market, supporting price stability and increasing long-term value." },
   { q: "What are the DRIP transaction fees?", a: "DRIP has a 1% tax on buys and a 1% tax on sells. Fees are allocated 50% to USDC reflections, 25% to a combined burn and buyback, and 25% to treasury." },
