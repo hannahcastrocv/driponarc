@@ -17,6 +17,7 @@ const DEAD = ARC.burnAddresses[1].toLowerCase();
 const DRIP = ARC.drip.toLowerCase();
 const USDC = ARC.usdc.toLowerCase();
 const WALLET = ARC.buybackWallet.toLowerCase();
+const EXCLUDED = new Set((ARC.excludeFromHolders || []).map((a) => a.toLowerCase()));
 const DRIP_SCALE = 10n ** BigInt(ARC.dripDecimals);
 const USDC_SCALE = 10n ** BigInt(ARC.usdcDecimals);
 
@@ -191,7 +192,7 @@ export function createIndexer() {
   function holderEntries() {
     const out = [];
     for (const [addr, bal] of balances) {
-      if (addr === ZERO || addr === DEAD) continue;
+      if (addr === ZERO || addr === DEAD || EXCLUDED.has(addr)) continue;
       if (bal > 0n) out.push([addr, bal]);
     }
     out.sort((a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0));
