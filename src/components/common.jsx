@@ -3,11 +3,11 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import {
-  Droplet, Flame, RefreshCw, Shield, Copy, Check, ArrowRight, ChevronDown, CircleDollarSign, Lock, ExternalLink,
+  Droplet, Flame, RefreshCw, Shield, Copy, Check, ArrowRight, ChevronDown,
+  CircleDollarSign, Lock, ExternalLink, Radio, Loader2, AlertTriangle,
 } from "lucide-react";
 import { ASSETS, DRIP_ADDRESS, EXPLORER } from "../config.js";
-import { usd, num } from "../lib/format.js";
-import { DEMO } from "../data/demo.js";
+import { usd, num, pct, shortenAddress } from "../lib/format.js";
 
 export const NAV = [
   { id: "home", label: "Home" },
@@ -58,8 +58,92 @@ export function GhostButton({ children, onClick, icon }) {
   return <button className="drip-btn drip-btn-ghost" onClick={onClick}>{icon}{children}</button>;
 }
 
-// Copyable contract-address card. Address comes from config (DRIP_ADDRESS) so
-// it only ever needs to change in one place.
+export function LiveBadge({ status, latestBlock }) {
+  if (status === "ready") {
+    return (
+      <span className="drip-live drip-live-on" title={`Latest indexed block #${latestBlock}`}>
+        <span className="drip-live-dot" /> LIVE <em>#{num(latestBlock)}</em>
+      </span>
+    );
+  }
+  if (status === "loading") {
+    return <span className="drip-live drip-live-wait"><Loader2 size={12} className="drip-spin" /> INDEXING</span>;
+  }
+  if (status === "error") {
+    return <span className="drip-live drip-live-err"><AlertTriangle size={12} /> RPC ERROR</span>;
+  }
+  return <span className="drip-live drip-live-off"><Radio size={12} /> RPC NOT SET</span>;
+}
+
+export function Notice({ status, error }) {
+  if (status === "needs-config") {
+    return (
+      <div className="drip-panel drip-notice">
+        <div className="drip-notice-title"><Radio size={16} /> Connect an Arc RPC to go live</div>
+        <p>This dashboard reads all numbers directly from Arc Mainnet. Set <code>ARC.rpcUrl</code> in <code>src/config.js</code> to an Arc Mainnet RPC endpoint, then rebuild. No statistics are shown until the chain is connected.</p>
+      </div>
+    );
+  }
+  if (status === "loading") {
+    return (
+      <div className="drip-panel drip-notice">
+        <div className="drip-notice-title"><Loader2 size={16} className="drip-spin" /> Indexing Arc Mainnet...</div>
+        <p>Backfilling DRIP transfers, reflections, burns and buybacks from the chain. This can take a moment on first load.</p>
+      </div>
+    );
+  }
+  if (status === "error") {
+    return (
+      <div className="drip-panel drip-notice drip-notice-err">
+        <div className="drip-notice-title"><AlertTriangle size={16} /> Could not read the chain</div>
+        <p>{error || "The RPC request failed."} Check the RPC URL and that it allows <code>eth_getLogs</code>.</p>
+      </div>
+    );
+  }
+  return null;
+}
+
+export function ChartCard({ title, unit, data, color, gradId, tickFmt }) {
+  const empty = !data || data.length === 0;
+  return (
+    <div className="drip-panel drip-chart-panel">
+      <div className="drip-chart-head">
+        <div>
+          <div className="drip-chart-title">{title}</div>
+          <div className="drip-chart-unit">{unit}</div>
+        </div>
+        <div className="drip-pill">Lifetime <ChevronDown size={13} /></div>
+      </div>
+      <div style={{ width: "100%", height: 220 }}>
+        {empty ? (
+          <div className="drip-chart-empty">No on-chain data in range yet</div>
+        ) : (
+          <ResponsiveContainer>
+            <AreaChart data={data} margin={{ top: 8, right: 10, left: -6, bottom: 0 }}>
+              <defs>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={color} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="#16203a" vertical={false} />
+              <XAxis dataKey="label" stroke="#5b6779" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} dy={6} />
+              <YAxis stroke="#5b6779" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={44} tickFormatter={tickFmt} />
+              <Tooltip
+                cursor={{ stroke: color, strokeOpacity: 0.3 }}
+                contentStyle={{ background: "#0b1322", border: "1px solid #1c2842", borderRadius: 10, fontSize: 12 }}
+                labelStyle={{ color: "#8a97ad" }} itemStyle={{ color: color }}
+                formatter={(v) => [tickFmt ? tickFmt(v) : num(v), "Total"]}
+              />
+              <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2.4} fill={`url(#${gradId})`} dot={false} />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ContractAddressCard() {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -67,9 +151,7 @@ export function ContractAddressCard() {
       await navigator.clipboard.writeText(DRIP_ADDRESS);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
-    } catch (e) {
-      /* clipboard unavailable */
-    }
+    } catch (e) { /* clipboard unavailable */ }
   };
   return (
     <div className="drip-panel drip-ca">
@@ -82,66 +164,26 @@ export function ContractAddressCard() {
           <span>{copied ? "Copied" : "Copy"}</span>
         </button>
       </div>
-      <a className="drip-ca-scan" href={EXPLORER.address(DRIP_ADDRESS)} target="_blank" rel="noreferrer">
+      <a className="drip-ca-scan" href={EXPLORER.token(DRIP_ADDRESS.toLowerCase())} target="_blank" rel="noreferrer">
         View on Arc-Scan <ExternalLink size={13} />
       </a>
     </div>
   );
 }
 
-// Renders a full 0x address/tx hash as an Arc-Scan link; anything else (e.g.
-// shortened demo values) renders as plain mono text so no broken links appear.
 export function ExplorerLink({ value, kind = "tx", className = "" }) {
   const isFull = typeof value === "string" && /^0x[0-9a-fA-F]{40,64}$/.test(value);
   const short = value && value.length > 14 ? value.slice(0, 6) + "..." + value.slice(-4) : value;
   if (!isFull) return <span className={`drip-mono ${className}`}>{short}</span>;
   const href = kind === "address" ? EXPLORER.address(value) : EXPLORER.tx(value);
   return (
-    <a className={`drip-mono drip-exlink ${className}`} href={href} target="_blank" rel="noreferrer">
-      {short}
-    </a>
-  );
-}
-
-export function ChartCard({ title, unit, data, color, gradId, tickFmt }) {
-  return (
-    <div className="drip-panel drip-chart-panel">
-      <div className="drip-chart-head">
-        <div>
-          <div className="drip-chart-title">{title}</div>
-          <div className="drip-chart-unit">{unit}</div>
-        </div>
-        <div className="drip-pill">Lifetime <ChevronDown size={13} /></div>
-      </div>
-      <div style={{ width: "100%", height: 220 }}>
-        <ResponsiveContainer>
-          <AreaChart data={data} margin={{ top: 8, right: 10, left: -6, bottom: 0 }}>
-            <defs>
-              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="#16203a" vertical={false} />
-            <XAxis dataKey="label" stroke="#5b6779" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} dy={6} />
-            <YAxis stroke="#5b6779" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} width={44} tickFormatter={tickFmt} />
-            <Tooltip
-              cursor={{ stroke: color, strokeOpacity: 0.3 }}
-              contentStyle={{ background: "#0b1322", border: "1px solid #1c2842", borderRadius: 10, fontSize: 12 }}
-              labelStyle={{ color: "#8a97ad" }} itemStyle={{ color: color }}
-              formatter={(v) => [tickFmt ? tickFmt(v) : num(v), "Total"]}
-            />
-            <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2.4} fill={`url(#${gradId})`} dot={false} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+    <a className={`drip-mono drip-exlink ${className}`} href={href} target="_blank" rel="noreferrer">{short}</a>
   );
 }
 
 export function ValuePropBar() {
   const items = [
-    { icon: <Droplet size={17} />, t: "Automatic", s: "On Every Tx" },
+    { icon: <Droplet size={17} />, t: "Automatic", s: "Accrual" },
     { icon: <Shield size={17} />, t: "Transparent", s: "On-Chain" },
     { icon: <Lock size={17} />, t: "Secure", s: "& Verified" },
   ];
@@ -207,8 +249,17 @@ export function PageShell({ eyebrow, title, accentTitle, sub, scene, children })
   );
 }
 
-export function WalletDashboard({ wallet }) {
-  const w = wallet;
+export function WalletDashboard({ wallet, ready }) {
+  if (!wallet) {
+    return (
+      <div className="drip-panel drip-wallet drip-wallet-empty">
+        <span className="drip-eyebrow" style={{ margin: 0 }}>YOUR WALLET STATS</span>
+        <p className="drip-wallet-hint">
+          {ready ? "Paste a wallet address above to see its live DRIP stats." : "Live data is still loading. Paste an address once indexing finishes."}
+        </p>
+      </div>
+    );
+  }
   const tile = (label, sub, icon, value, foot, color) => (
     <div className="drip-wtile">
       <div className="drip-wtile-label">{label}{sub ? <em> {sub}</em> : null}</div>
@@ -220,34 +271,40 @@ export function WalletDashboard({ wallet }) {
     <div className="drip-panel drip-wallet">
       <div className="drip-wallet-head">
         <span className="drip-eyebrow" style={{ margin: 0 }}>YOUR WALLET STATS</span>
-        <span className="drip-connected"><span className="drip-dot" /> Connected</span>
+        <span className={`drip-connected ${wallet.found ? "" : "drip-connected-off"}`}>
+          <span className="drip-dot" /> {wallet.found ? "On-chain" : "No activity"}
+        </span>
       </div>
-      <div className="drip-wallet-addr">{w.address}<Copy size={15} /></div>
-      <div className="drip-wallet-grid">
-        {tile("DRIP BALANCE", "", <Droplet size={16} />, num(w.balance.toFixed(2)), `~ ${usd(w.balanceUsd)} USD`, "#5fb0ff")}
-        {tile("USDC REFLECTIONS EARNED", "", <CircleDollarSign size={16} />, usd(w.reflectionsEarned).slice(1), `~ ${usd(w.reflectionsEarned)} USD`, "#38bdf8")}
-        {tile("TOTAL REFLECTIONS", "(ALL-TIME)", <CircleDollarSign size={16} />, w.totalReflections.toFixed(2), `~ ${usd(w.totalReflections)} USD`, "#38bdf8")}
-        {tile("EST. MONTHLY REFLECTIONS", "", <CircleDollarSign size={16} />, w.monthly.toFixed(2), `~ ${usd(w.monthly)} USD`, "#38bdf8")}
-        {tile("DRIP BURNED", "(FROM YOUR TXS)", <Flame size={16} />, num(w.burnedFromYou.toFixed(2)), `~ ${usd(w.burnedFromYouUsd)} USD`, "#fb923c")}
-        {tile("BUYBACKS BENEFITED YOU", "", <RefreshCw size={16} />, w.buybacksBenefited.toFixed(2), `~ ${usd(w.buybacksBenefitedUsd)} USD`, "#4ade80")}
+      <div className="drip-wallet-addr">
+        <ExplorerLink value={wallet.address} kind="address" />
       </div>
-      <div className="drip-wallet-foot">
-        <span>Your holdings earn automatically with every transaction.</span>
-        <GhostButton>View Detailed Stats <ArrowRight size={15} /></GhostButton>
-      </div>
+      {wallet.found ? (
+        <>
+          <div className="drip-wallet-grid">
+            {tile("DRIP BALANCE", "", <Droplet size={16} />, num(wallet.balance), "", "#5fb0ff")}
+            {tile("% OF TOTAL SUPPLY", "", <CircleDollarSign size={16} />, pct(wallet.pctTotal), "", "#38bdf8")}
+            {tile("% OF CIRCULATING", "", <CircleDollarSign size={16} />, pct(wallet.pctCirc), "", "#38bdf8")}
+            {tile("TOTAL USDC REFLECTED", "", <CircleDollarSign size={16} />, usd(wallet.reflectionsTotal), "", "#38bdf8")}
+            {tile("LAST REFLECTION", "", <CircleDollarSign size={16} />, wallet.lastReflection ? usd(wallet.lastReflection.usdc) : "-", wallet.lastReflection ? wallet.lastReflection.time : "", "#38bdf8")}
+          </div>
+          <div className="drip-wallet-foot">
+            <span>Claimed / unclaimed splits are tracked on Radardex, not on-chain here.</span>
+          </div>
+        </>
+      ) : (
+        <p className="drip-wallet-hint">No DRIP balance or reflections found on-chain for this address.</p>
+      )}
     </div>
   );
 }
 
 export const FAQS = [
-  { q: "What is DRIP?", a: "DRIP is a reflection-powered memecoin on Arc. Every transaction rewards holders with USDC, burns DRIP, and supports the market with automatic buybacks." },
+  { q: "What is DRIP?", a: "DRIP is a reflection-powered memecoin on Arc. Every transaction rewards holders with USDC, burns DRIP, and supports the market with buybacks." },
   { q: "How do USDC reflections work?", a: "A portion of every transaction is converted to USDC and accrues automatically to all eligible DRIP holders in proportion to their holdings. You withdraw your accumulated USDC by claiming on Radardex." },
   { q: "Do I need to claim my USDC reflections?", a: "Yes. Your USDC reflections accumulate as you hold DRIP, and you claim them on Radardex. Connect your wallet on Radardex to claim your USDC." },
   { q: "What is the DRIP burn mechanism?", a: "DRIP is burned automatically as fees are collected on the token side, permanently removing DRIP from supply over time and increasing scarcity." },
   { q: "How does the buyback mechanism work?", a: "Accumulated fees are used to buy DRIP from the open market, supporting price stability and increasing long-term value." },
   { q: "What are the DRIP transaction fees?", a: "DRIP has a 1% tax on buys and a 1% tax on sells. Fees are allocated 50% to USDC reflections, 25% to a combined burn and buyback, and 25% to treasury." },
   { q: "Is DRIP secure?", a: "DRIP is built with security in mind. All core functions are on-chain, transparent, and verifiable. The contract is verified on the Arc explorer." },
-  { q: "How can I buy DRIP?", a: "You can buy DRIP on supported DEXs on Arc. Visit our community channels for the latest links once the token launches." },
+  { q: "How can I buy DRIP?", a: "You can buy DRIP on Radardex on Arc. Use the Buy DRIP button, and always verify the contract address first." },
 ];
-
-export { DEMO };
