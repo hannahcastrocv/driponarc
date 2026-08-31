@@ -59,7 +59,7 @@ export const ARC = {
   // Indexer tuning. rpc.arc-scan.org caps eth_getLogs at a 10,000-block range,
   // so chunkSize stays at/below that. Auto-halves further on any range error.
   chunkSize: 10_000,
-  pollMs: 12_000,                // how often to check for new blocks
+  pollMs: 60_000,                // check for new blocks every 60s
 };
 
 // Contract address shown/copied in the UI + the "View on Arc-Scan" target.
