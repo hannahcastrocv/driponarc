@@ -243,6 +243,7 @@ html,body,#root{background:#05070f;}
   .drip-feat:nth-child(2){border-right:0;}
   .drip-feat{border-bottom:1px solid var(--border2);}
   .drip-mainstats{grid-template-columns:1fr 1fr;}
+  .drip-mstat-wide{grid-column:1 / -1;}
   .drip-statrow{grid-template-columns:1fr;}
   .drip-statrow .drip-mstat{border-right:0;}
   .drip-footer-inner{grid-template-columns:1fr 1fr;}
@@ -258,6 +259,7 @@ html,body,#root{background:#05070f;}
   .drip-featstrip{grid-template-columns:1fr;}
   .drip-feat{border-right:0;}
   .drip-mainstats{grid-template-columns:1fr;}
+  .drip-mstat-wide{grid-column:1 / -1;}
   .drip-footer-inner{grid-template-columns:1fr;}
   .drip-checker-row{flex-direction:column;}
   .drip-ca-row{flex-wrap:wrap;}
@@ -288,7 +290,7 @@ html,body,#root{background:#05070f;}
 .drip-notice-err .drip-notice-title{color:var(--orange);}
 
 /* supply progress bar */
-.drip-mstat-wide{grid-column:1 / -1;}
+.drip-mstat-wide{grid-column:2 / -1;}
 .drip-supplybar{height:8px;border-radius:999px;background:#0a1226;border:1px solid var(--border2);overflow:hidden;margin:10px 0 8px;}
 .drip-supplybar span{display:block;height:100%;background:linear-gradient(90deg,var(--blue2),var(--cyan));border-radius:999px;transition:width .6s ease;}
 
