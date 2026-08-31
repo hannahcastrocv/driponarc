@@ -37,6 +37,25 @@ async function rpc(method, params) {
   return json.result;
 }
 
+/* Batched JSON-RPC. Sends many calls in one HTTP request and returns the
+   results in the same order as `calls`. Used to fetch the whole backfill in a
+   single round trip instead of one request per block-range. */
+async function rpcBatch(calls) {
+  if (!ARC.rpcUrl) throw new Error("NO_RPC");
+  if (!calls.length) return [];
+  const body = calls.map((c, i) => ({ jsonrpc: "2.0", id: i, method: c.method, params: c.params }));
+  const res = await fetch(ARC.rpcUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`RPC batch HTTP ${res.status}`);
+  const json = await res.json();
+  if (!Array.isArray(json)) throw new Error("RPC batch: non-array response");
+  const byId = new Map(json.map((r) => [r.id, r]));
+  return calls.map((_, i) => byId.get(i));
+}
+
 const hexToBig = (h) => (h && h !== "0x" ? BigInt(h) : 0n);
 const toHexBlock = (n) => "0x" + BigInt(n).toString(16);
 const topicAddr = (a) => "0x" + a.toLowerCase().replace(/^0x/, "").padStart(64, "0");
@@ -75,18 +94,29 @@ async function getLogs(address, topics, fromBlock, toBlock, chunk) {
   return out;
 }
 
-/* Fetch (and cache) block timestamps for a set of block numbers. */
+/* Block timestamps. rpc.arc-scan.org returns `blockTimestamp` on every log, so
+   we cache it straight from getLogs (recordTs) and avoid per-block calls. */
 const tsCache = new Map();
+function recordTs(l) {
+  if (l && l.blockTimestamp != null) {
+    const b = Number(hexToBig(l.blockNumber));
+    if (!tsCache.has(b)) tsCache.set(b, Number(hexToBig(l.blockTimestamp)));
+  }
+}
+/* Fallback for RPCs that omit blockTimestamp: fetch only what's missing, in
+   parallel. Normally a no-op because recordTs already filled the cache. */
 async function blockTimes(blockNumbers) {
   const need = [...new Set(blockNumbers)].filter((b) => !tsCache.has(b));
-  for (const b of need) {
-    try {
-      const blk = await rpc("eth_getBlockByNumber", [toHexBlock(b), false]);
-      tsCache.set(b, blk ? Number(hexToBig(blk.timestamp)) : 0);
-    } catch {
-      tsCache.set(b, 0);
-    }
-  }
+  await Promise.all(
+    need.map(async (b) => {
+      try {
+        const blk = await rpc("eth_getBlockByNumber", [toHexBlock(b), false]);
+        tsCache.set(b, blk ? Number(hexToBig(blk.timestamp)) : 0);
+      } catch {
+        tsCache.set(b, 0);
+      }
+    })
+  );
   return tsCache;
 }
 
@@ -154,6 +184,51 @@ export function createIndexer() {
     tLogs.forEach(ingestTransfer);
     rLogs.forEach(ingestReflection);
     uLogs.forEach(ingestUsdcOut);
+    for (const l of tLogs) recordTs(l);
+    for (const l of rLogs) recordTs(l);
+    for (const l of uLogs) recordTs(l);
+  }
+
+  /* Fast path: split [from,to] into chunk-sized windows and fetch all three
+     topics for every window in one batched request (parallel sub-batches).
+     Falls back to the robust sequential scanRange on any batch problem. */
+  async function scanRangeBatched(from, to) {
+    const step = BigInt(ARC.chunkSize);
+    const ranges = [];
+    let s = BigInt(from);
+    const e = BigInt(to);
+    while (s <= e) { const stop = s + step - 1n > e ? e : s + step - 1n; ranges.push([s, stop]); s = stop + 1n; }
+    if (!ranges.length) return;
+
+    const calls = [];
+    for (const [a, b] of ranges) {
+      const fa = toHexBlock(a), fb = toHexBlock(b);
+      calls.push({ method: "eth_getLogs", params: [{ address: ARC.drip, topics: [ARC.transferTopic], fromBlock: fa, toBlock: fb }] });
+      calls.push({ method: "eth_getLogs", params: [{ address: ARC.drip, topics: [ARC.reflectionTopic], fromBlock: fa, toBlock: fb }] });
+      calls.push({ method: "eth_getLogs", params: [{ address: ARC.usdc, topics: [ARC.transferTopic, topicAddr(WALLET)], fromBlock: fa, toBlock: fb }] });
+    }
+    const MAX = 30; // cap calls per batch; groups run in parallel
+    const groups = [];
+    for (let i = 0; i < calls.length; i += MAX) groups.push(calls.slice(i, i + MAX));
+
+    try {
+      const settled = await Promise.all(groups.map((g) => rpcBatch(g)));
+      const results = settled.flat();
+      if (results.length === calls.length && results.every((r) => r && !r.error)) {
+        for (let i = 0; i < ranges.length; i++) {
+          const tLogs = results[i * 3].result || [];
+          const rLogs = results[i * 3 + 1].result || [];
+          const uLogs = results[i * 3 + 2].result || [];
+          tLogs.forEach(ingestTransfer);
+          rLogs.forEach(ingestReflection);
+          uLogs.forEach(ingestUsdcOut);
+          tLogs.forEach(recordTs); rLogs.forEach(recordTs); uLogs.forEach(recordTs);
+        }
+        return;
+      }
+    } catch { /* fall through */ }
+    // Fallback: robust sequential scan (auto-halves on range errors).
+    for (const [a, b] of ranges) await scanRange(Number(a), Number(b));
   }
 
   // Buybacks: group by tx where wallet spent USDC (usdcOut) AND received DRIP.
@@ -338,23 +413,61 @@ export function createIndexer() {
     };
   }
 
+  /* ---- persistence: dump/restore raw state so a reload only fetches new
+     blocks instead of re-scanning history. BigInts are stored as strings. --- */
+  const CACHE_V = 1;
+  function dumpState() {
+    return {
+      v: CACHE_V,
+      lastBlock,
+      totalBurnedRaw: totalBurnedRaw.toString(),
+      transfers: transfers.map((t) => [t.from, t.to, t.value.toString(), t.block, t.tx, t.logIndex]),
+      reflections: reflections.map((r) => [r.holder, r.amount.toString(), r.block, r.tx, r.logIndex]),
+      usdcOut: usdcOut.map((u) => [u.to, u.value.toString(), u.block, u.tx, u.logIndex]),
+      balances: [...balances].map(([a, b]) => [a, b.toString()]),
+      reflByHolder: [...reflByHolder].map(([a, b]) => [a, b.toString()]),
+      seen: [...seen],
+      ts: [...tsCache],
+    };
+  }
+  function hydrate(s) {
+    if (!s || s.v !== CACHE_V || !Array.isArray(s.transfers)) return false;
+    try {
+      lastBlock = s.lastBlock || 0;
+      totalBurnedRaw = BigInt(s.totalBurnedRaw || "0");
+      transfers.length = reflections.length = usdcOut.length = 0;
+      for (const [from, to, value, block, tx, logIndex] of s.transfers) transfers.push({ from, to, value: BigInt(value), block, tx, logIndex });
+      for (const [holder, amount, block, tx, logIndex] of s.reflections) reflections.push({ holder, amount: BigInt(amount), block, tx, logIndex });
+      for (const [to, value, block, tx, logIndex] of s.usdcOut) usdcOut.push({ to, value: BigInt(value), block, tx, logIndex });
+      balances.clear(); for (const [a, b] of s.balances) balances.set(a, BigInt(b));
+      reflByHolder.clear(); for (const [a, b] of s.reflByHolder) reflByHolder.set(a, BigInt(b));
+      seen.clear(); for (const k of s.seen) seen.add(k);
+      if (Array.isArray(s.ts)) for (const [b, t] of s.ts) tsCache.set(Number(b), t);
+      return true;
+    } catch { return false; }
+  }
+
   return {
-    // Full historical backfill from deployBlock -> head.
+    // Full historical backfill from deployBlock -> head (batched).
     async backfill() {
       const head = Number(hexToBig(await rpc("eth_blockNumber")));
-      await scanRange(ARC.deployBlock || 0, head);
+      await scanRangeBatched(ARC.deployBlock || 0, head);
       lastBlock = head;
       return snapshot();
     },
-    // Process only new blocks since last time.
+    // Process only new blocks since last time (batched).
     async update() {
       const head = Number(hexToBig(await rpc("eth_blockNumber")));
       if (head <= lastBlock) return null; // nothing new
-      await scanRange(lastBlock + 1, head);
+      await scanRangeBatched(lastBlock + 1, head);
       lastBlock = head;
       return snapshot();
     },
+    // Recompute the snapshot from current in-memory state (no network).
+    snapshot: () => snapshot(),
     getWallet,
+    dumpState,
+    hydrate,
     get lastBlock() { return lastBlock; },
   };
 }
