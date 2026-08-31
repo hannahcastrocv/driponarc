@@ -18,7 +18,7 @@ export default function Home() {
   };
 
   const features = [
-    { icon: <Droplet size={20} />, t: "USDC REFLECTIONS", s: "Automatic", c: "#5fb0ff" },
+    { icon: <Droplet size={20} />, t: "USDC REFLECTIONS", s: "Claim on Radardex", c: "#5fb0ff" },
     { icon: <Flame size={20} />, t: "AUTOMATIC BURN", s: "On Every Tx", c: "#fb923c" },
     { icon: <RefreshCw size={20} />, t: "BUYBACK", s: "On accumulated fees", c: "#4ade80" },
     { icon: <Shield size={20} />, t: "TRANSPARENT & SECURE", s: "On-Chain", c: "#38bdf8" },
